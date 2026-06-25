@@ -8,9 +8,14 @@ import requests
 import os
 from celery_app import celery_app
 from celery.result import AsyncResult
-from kafka_producer import enviar_evento
 
-
+##########################################
+try:
+    from kafka_producer import enviar_evento
+except Exception:
+    def enviar_evento(*args, **kwargs):
+        pass
+##########################################
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
@@ -71,40 +76,6 @@ class Pokemon_DB(Base):
 
 Base.metadata.create_all(bind=engine)
 
-def popular_pokedex():
-    db = SessionLocal()
-
-    try:
-        if db.query(Pokemon_DB).count() > 0:
-            return
-
-        for pokemon_id in range(1, 1026):
-            response = requests.get(
-                f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}"
-            )
-
-            if response.status_code != 200:
-                continue
-
-            data = response.json()
-
-            pokemon = Pokemon_DB(
-                pokemon_name=data["name"],
-                pokemon_level=1,
-                pokemon_typing="/".join(
-                    t["type"]["name"]
-                    for t in data["types"]
-                )
-            )
-
-            db.add(pokemon)
-
-        db.commit()
-
-    finally:
-        db.close()
-
-popular_pokedex()
 
 def get_session_db():
     db = SessionLocal()
@@ -112,6 +83,41 @@ def get_session_db():
         yield db
     finally:
         db.close()
+        
+def popular_pokedex():
+    db = SessionLocal()
+    try:
+        total = db.query(Pokemon_DB).count()
+        if total > 0:
+            print(f"Pokédex já possui {total} registros.")
+            return
+        print("Baixando pokémons da API...")
+        response = requests.get(
+            "https://pokeapi.co/api/v2/pokemon?limit=1025",
+            timeout=30
+        )
+        response.raise_for_status()
+        pokemons = response.json()["results"]
+        for pokemon_data in pokemons:
+            db.add(
+                Pokemon_DB(
+                    pokemon_name=pokemon_data["name"],
+                    pokemon_level=1,
+                    pokemon_typing="unknown"
+                )
+            )
+        db.commit()
+        print(
+            f"Pokédex populada com {db.query(Pokemon_DB).count()} pokémons."
+        )
+    except Exception as e:
+        print(f"Erro ao popular pokédex: {e}")
+    finally:
+        db.close()
+
+@app.on_event("startup")
+def startup_event():
+    popular_pokedex()
 
 def user_authentication(
     credentials: HTTPBasicCredentials = Depends(security)
