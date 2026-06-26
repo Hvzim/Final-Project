@@ -8,7 +8,7 @@ import requests
 import os
 from celery_app import celery_app
 from celery.result import AsyncResult
-
+from tasks import processar_pokemon
 ##########################################
 try:
     from kafka_producer import enviar_evento
@@ -83,6 +83,8 @@ def get_session_db():
         yield db
     finally:
         db.close()
+
+
         
 def popular_pokedex():
     db = SessionLocal()
@@ -200,6 +202,20 @@ async def get_pokemon_by_id(
         "pokemon_typing": pokemon.pokemon_typing
     }
 
+@app.get("/task/{task_id}")
+async def get_task_status(
+    task_id: str,
+    credentials: HTTPBasicCredentials = Depends(user_authentication)
+):
+    tarefa = AsyncResult(task_id, app=celery_app)
+
+    return {
+        "task_id": tarefa.id,
+        "status": tarefa.status,
+        "result": tarefa.result
+    }
+
+
 @app.get("/pokemon/name/{pokemon_name}")
 async def get_pokemon_by_name(
     pokemon_name: str,
@@ -246,6 +262,8 @@ async def add_pokemon(
     db.commit()
     db.refresh(novo)
 
+    tarefa = processar_pokemon.delay(pokemon.pokemon_name)
+
     logger.info(
     json.dumps({
         "evento": "pokemon_criado",
@@ -262,7 +280,10 @@ async def add_pokemon(
             }
         )
 
-    return {"message": "Pokemon criado com sucesso!"}
+    return {
+    "message": "Pokemon criado com sucesso!",
+    "task_id": tarefa.id
+    }
     
 
 @app.put("/update/{pokemon_id}")
