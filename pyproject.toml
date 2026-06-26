@@ -3,13 +3,26 @@ name = "final project"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Gabriel Zatz Mazin",email = "gabrielmazin7@gmail.com"}
+    {name = "Gabriel Zatz Mazin", email = "gabrielmazin7@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.13"
+
 dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "sqlalchemy>=2.0.0",
+    "pydantic>=2.0.0",
+    "requests>=2.32.0",
+    "redis>=6.0.0",
+    "celery>=5.5.0",
+    "kafka-python>=2.2.0"
 ]
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-cov = "^6.0.0"
+httpx = "^0.28.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
